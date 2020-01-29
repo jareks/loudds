@@ -11,10 +11,10 @@ import setuptools
 
 setuptools.setup(
     name="loudds",
-    version="0.0.4",
+    version="0.0.5",
     author="Jarosław Skrzypek",
     author_email="skrzypek.jarek@gmail.com",
-    description="Simply send prediction results to HTTP(s) endpoint",
+    description="Python client for loudds",
     url="https://github.com/jareks/loudds",
     packages=setuptools.find_packages(),
     classifiers=[
