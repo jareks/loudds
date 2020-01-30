@@ -11,7 +11,7 @@ import setuptools
 
 setuptools.setup(
     name="loudds",
-    version="0.0.5",
+    version="0.0.6",
     author="Jarosław Skrzypek",
     author_email="skrzypek.jarek@gmail.com",
     description="Python client for loudds",
@@ -23,4 +23,5 @@ setuptools.setup(
         "Intended Audience :: Developers",
         "Development Status :: 3 - Alpha",
     ],
+    install_requires=["requests", "aiohttp", "aiofiles"],
 )
