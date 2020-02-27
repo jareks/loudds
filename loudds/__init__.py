@@ -9,7 +9,7 @@ import asyncio
 from pathlib import Path
 from urllib.parse import urlsplit
 
-LOUDDATA_HOST = "cl-backend:8000"
+LOUDDATA_URL = "http://cl-backend:8000"
 
 
 async def get_url(session, url, dir):
@@ -27,8 +27,9 @@ async def get_url(session, url, dir):
 
 
 class LoudData:
-    def __init__(self, *, access_token):
+    def __init__(self, *, access_token, url=LOUDDATA_URL):
         self.access_token = access_token
+        self.url = url
         self.session = aiohttp.ClientSession(cookie_jar=aiohttp.DummyCookieJar())
 
     def __del__(self):
@@ -73,15 +74,15 @@ class LoudData:
 
     def send_predictions(self, dataset_id, summary):
         # TODO: Replace with aiohttp
-        requests.post(
-            f"http://{LOUDDATA_HOST}/predictions/{dataset_id}",
+        return requests.post(
+            f"{self.url}/predictions/{dataset_id}",
             json=summary,
             headers={"Authorization": f"bearer {self.access_token}"},
         )
 
-    def upload_runs(self, tb_host, tb_port, dir="../runs/"):
+    def upload_tensorboard_logs(self, rsync_url, dir="../runs/"):
         return subprocess.run(
-            ["rsync", "-rv", "--inplace", dir, f"rsync://{tb_host}:{tb_port}/runs"],
+            ["rsync", "-rv", "--inplace", dir, f"rsync://{rsync_url}"],
             check=True,
             capture_output=True,
         )
