@@ -28,23 +28,23 @@ KEY_CLASS = paramiko.ecdsakey.ECDSAKey
 async def download_url_file(client: httpx.AsyncClient, url: str, directory: str) -> str:
     response = await client.get(url)
     if response.status_code >= 400:
-        return f"Incorrect url status code: {url} ({response.status_code})"
+        raise RuntimeError(f"Incorrect url status code: {url} ({response.status_code})")
     body = await response.aread()
     url_parts = urlsplit(url)
     parts = Path(url_parts.path).parts
     output_filename = parts[-1]
     with open(directory / output_filename, "wb") as file:
         file.write(body)
-    response.close()
+    await response.aclose()
     return Path(output_filename)
 
 
 async def download_url(client: httpx.AsyncClient, url: str) -> str:
     response = await client.get(url)
     if response.status_code != 200:
-        return f"Incorrect url status code: {url} ({response.status_code})"
+        raise RuntimeError(f"Incorrect url status code: {url} ({response.status_code})")
     body = await response.aread()
-    response.close()
+    await response.aclose()
     return body
 
 
