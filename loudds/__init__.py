@@ -39,7 +39,7 @@ async def download_url_file(client: httpx.AsyncClient, url: str, directory: str)
     return Path(output_filename)
 
 
-async def download_url(client: httpx.AsyncClient, url: str) -> str:
+async def get_url(client: httpx.AsyncClient, url: str) -> str:
     response = await client.get(url)
     if response.status_code != 200:
         raise RuntimeError(f"Incorrect url status code: {url} ({response.status_code})")
@@ -73,11 +73,11 @@ class LoudData:
 
     def download_ssh_key(self) -> str:
         url = f"{self.url}/api1/ssh/key"
-        return trio.run(download_url, self.httpx_client, url)
+        return trio.run(get_url, self.httpx_client, url)
 
     def set_user_data(self) -> None:
         url = f"{self.url}/me"
-        raw = trio.run(download_url, self.httpx_client, url)
+        raw = trio.run(get_url, self.httpx_client, url)
         parsed = ujson.loads(raw)
 
         self.client_id = parsed["id"]
@@ -95,7 +95,7 @@ class LoudData:
 
     def setup_instance_data(self) -> None:
         url = f"{self.url}/api1/info"
-        data = trio.run(download_url, self.httpx_client, url)
+        data = trio.run(get_url, self.httpx_client, url)
         raw = ujson.loads(data.decode("utf-8"))
         self.k8s_domain = raw["k8s_domain"]
         self.proxy_ssh_host = raw["proxy_ssh_host"]
