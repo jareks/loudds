@@ -13,6 +13,6 @@ tun.start()
 
 # louddata.download_archive('https://staging-b.louddata.space/assets/f5Isrpkw.tgz', '../data')
 # a tu jest uplaod do tesnorboarda po rsyncu, czyli tu chcemy dodac tunel ssh:
-#louddata.upload_tensorboard_logs(louddata.rsyncd_remote_url())
+louddata.upload_tensorboard_logs(louddata.rsyncd_remote_url())
 
 tun.stop()
