@@ -23,5 +23,5 @@ setuptools.setup(
         "Intended Audience :: Developers",
         "Development Status :: 3 - Alpha",
     ],
-    install_requires=["requests", "aiohttp", "aiofiles"],
+    install_requires=["requests", "sshtunnel", "ujson", "httpx", "trio"],
 )
