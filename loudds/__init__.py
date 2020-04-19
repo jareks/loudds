@@ -3,9 +3,8 @@ __version__ = "0.0.6"
 import tarfile
 import requests
 import subprocess
-import aiohttp
-import aiofiles
-import asyncio
+import httpx
+import trio
 import ujson
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -26,41 +25,46 @@ DEFAULT_LOCAL_RSYNCD_BIND_PORT = 16873
 KEY_CLASS = paramiko.ecdsakey.ECDSAKey
 
 
-async def download_url_file(session, url, dir):
-    response = await session.get(url)
-    if response.status >= 400 and response.status < 500:
-        return f"Incorrect url status code: {url} ({response.status})"
-    body = await response.read()
+async def download_url_file(client: httpx.AsyncClient, url: str, directory: str) -> str:
+    response = await client.get(url)
+    if response.status_code >= 400:
+        return f"Incorrect url status code: {url} ({response.status_code})"
+    body = await response.aread()
     url_parts = urlsplit(url)
     parts = Path(url_parts.path).parts
     output_filename = parts[-1]
-    async with aiofiles.open(dir / output_filename, "wb") as file:
-        await file.write(body)
-    # await session.close()
+    with open(directory / output_filename, "wb") as file:
+        file.write(body)
+    response.close()
     return Path(output_filename)
 
 
-async def download_url(session: aiohttp.ClientSession, url: str) -> str:
-    response = await session.get(url)
-    if response.status != 200:
-        return f"Incorrect url status code: {url} ({response.status})"
-    body = await response.read()
+async def download_url(client: httpx.AsyncClient, url: str) -> str:
+    response = await client.get(url)
+    if response.status_code != 200:
+        return f"Incorrect url status code: {url} ({response.status_code})"
+    body = await response.aread()
+    response.close()
     return body
 
 
 class LoudData:
     def __init__(
-        self, *, access_token: str, url: str = LOUDDATA_URL, dataset_id: int = None, tunnel_bind_host: str = LOCAL_SSH_BIND_HOST
+        self,
+        *,
+        access_token: str,
+        url: str = LOUDDATA_URL,
+        dataset_id: int = None,
+        tunnel_bind_host: str = LOCAL_SSH_BIND_HOST,
     ) -> None:
 
         self.dataset_id = dataset_id
         self.access_token = access_token
         self.tunnel_bind_host = tunnel_bind_host
         self.url = url
-        self.session = aiohttp.ClientSession(
-            cookie_jar=aiohttp.DummyCookieJar(),
-            headers=dict(Authorization=f"Bearer {self.access_token}"),
-        )
+
+        self.httpx_client = httpx.AsyncClient()
+        self.httpx_client.headers = {"Authorization": f"Bearer {self.access_token}"}
 
         self.setup_ssh_key()
         self.setup_instance_data()
@@ -69,13 +73,11 @@ class LoudData:
 
     def download_ssh_key(self) -> str:
         url = f"{self.url}/api1/ssh/key"
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(download_url(self.session, url))
+        return trio.run(download_url, self.httpx_client, url)
 
     def set_user_data(self) -> None:
         url = f"{self.url}/me"
-        loop = asyncio.get_event_loop()
-        raw = loop.run_until_complete(download_url(self.session, url))
+        raw = trio.run(download_url, self.httpx_client, url)
         parsed = ujson.loads(raw)
 
         self.client_id = parsed["id"]
@@ -93,8 +95,7 @@ class LoudData:
 
     def setup_instance_data(self) -> None:
         url = f"{self.url}/api1/info"
-        loop = asyncio.get_event_loop()
-        data = loop.run_until_complete(download_url(self.session, url))
+        data = trio.run(download_url, self.httpx_client, url)
         raw = ujson.loads(data.decode("utf-8"))
         self.k8s_domain = raw["k8s_domain"]
         self.proxy_ssh_host = raw["proxy_ssh_host"]
@@ -102,10 +103,7 @@ class LoudData:
 
     def download_archive(self, url, dir, flatten=False):
         dir = Path(dir)
-        loop = asyncio.get_event_loop()
-        filename = loop.run_until_complete(
-            download_url_file(self.session, url, Path(dir))
-        )
+        filename = trio.run(download_url_file, self.httpx_client, url, Path(dir))
         self.untar_archive(dir / filename, dir, flatten=flatten)
 
     def untar_archive(self, filename, dir, flatten=False):
@@ -163,7 +161,9 @@ class LoudData:
         dataset_id = self._require_value(dataset_id or self.dataset_id)
         return f"classify-tensorboards-tensorboard-{self.organisation_id}-{dataset_id}-svc.org-{self.organisation_id}.svc.{self.k8s_domain}"
 
-    def rsyncd_remote_url(self, rsyncd_port: int = DEFAULT_LOCAL_RSYNCD_BIND_PORT) -> str:
+    def rsyncd_remote_url(
+        self, rsyncd_port: int = DEFAULT_LOCAL_RSYNCD_BIND_PORT
+    ) -> str:
         return f"rsync://{self.tunnel_bind_host}:{rsyncd_port}/runs"
 
     @staticmethod
@@ -197,10 +197,8 @@ class LoudData:
         except subprocess.CalledProcessError as e:
             print("rsync stdout:")
             print(e.stdout.decode("utf-8"))
+
             print("rsync stderr:")
             print(e.stderr.decode("utf-8"))
-            raise
 
-    async def __aexit__(self, *err):
-        await self.session.close()
-        self.session = None
+            raise
