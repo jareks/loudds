@@ -70,7 +70,6 @@ class LoudData:
         self.setup_instance_data()
         self.set_user_data()
 
-
     def download_ssh_key(self) -> str:
         url = f"{self.url}/api1/ssh/key"
         return trio.run(get_url, self.httpx_client, url)
@@ -104,7 +103,7 @@ class LoudData:
     def download_archive(self, url, dir, flatten=False):
         dir = Path(dir)
         filename = trio.run(download_url_file, self.httpx_client, url, Path(dir))
-        self.untar_archive(dir / filename, dir, flatten=flatten)
+        self.untar_archive(dir / filename, dir / filename.stem, flatten=flatten)
 
     def untar_archive(self, filename, dir, flatten=False):
         dir = Path(dir)
@@ -114,12 +113,12 @@ class LoudData:
 
         tar = tarfile.open(filename, mode="r:*")
         for f in tar.getmembers():
-            buf = tar.extractfile(f)
-            data = buf.read()
             path = Path(f.path)
             if path.is_absolute() or "../" in str(path):
                 raise Exception(f"Incorrect path in archive: {path}")
 
+            buf = tar.extractfile(f)
+            data = buf.read()
             if not flatten and f.isdir():
                 path.mkdir(mode=0o700, parents=True, exist_ok=True)
             elif f.isreg():
